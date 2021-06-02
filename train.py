@@ -65,7 +65,6 @@ def main():
 
             loss.backward()
             model_optim.step()
-            lr_schedular.step()
 
             iterator.set_postfix(loss='{}'.format(loss.data))
 
