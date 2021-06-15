@@ -13,6 +13,7 @@ from tqdm import tqdm
 from utils.dataset import BasicDataSet
 from model.net import MyNet
 from model.net import DenseUnet
+from model.NestedUnet import NestedUNet
 from torch.utils.data import DataLoader, random_split
 
 from sklearn.metrics import accuracy_score
@@ -35,18 +36,17 @@ def main():
     testSet = BasicDataSet(test_img,test_label,1)
     dataloader = DataLoader(dateSet, batch_size=2, shuffle=True, num_workers=4)
 
-    model = DenseUnet()
+    model = NestedUNet(1,1)
     if USE_CUDA:
         model=model.cuda()
     print(next(model.parameters()).device)
     params = [p for p in model.parameters() if p.requires_grad]
-    model_optim = optim.Adam(params, lr=1e-3, weight_decay=0.0001)
+    model_optim = optim.Adam(params, lr=1e-3)
 
     # Loss function
-    criterion = nn.BCELoss()
-    lr_schedular = optim.lr_scheduler.StepLR(model_optim, step_size=5, gamma=0.1)
+    lr_schedular = optim.lr_scheduler.StepLR(model_optim, step_size=20, gamma=0.5)
 
-    num_epochs = 20
+    num_epochs = 60
 
     for epoch in range(num_epochs):
         
@@ -60,13 +60,12 @@ def main():
             if USE_CUDA:
                 img = img.cuda()
                 label = label.cuda()
-
-            model_optim.zero_grad()d
-            
+            model_optim.zero_grad()
+            BCEweight=torch.where(label==0,2,1)
+            criterion = nn.BCEWithLogitsLoss(weight=BCEweight)
             outputs = model(img)
             loss = criterion(outputs, label)
 
-            #epoch_loss += loss.item()
 
             loss.backward()
             model_optim.step()
@@ -80,11 +79,14 @@ def main():
                 label=data['label']
                 if USE_CUDA:
                     img=img.cuda()
-                output=model(img.unsqueeze(0)).cpu().numpy()
-                label=label.numpy().astype(np.int64)
-                pred=np.where(output>0.5,1,0).astype(np.int64)
-                accuracy+=np.sum(np.equal(label,pred))/label.size
-        print("The %i epoch, accuracy is %f"%(epoch,accuracy/len(testSet)))
+                    label=label.cuda()
+                output=model(img.unsqueeze(0))
+                BCEweight=torch.where(label[0]==0,2,1).squeeze()
+                criterion = nn.BCEWithLogitsLoss(weight=BCEweight)
+                loss = criterion(output.squeeze(), label[0].squeeze())
+                accuracy+=loss.item()
+        print("The %i epoch, loss is %f"%(epoch+1,accuracy/len(testSet)))
+        torch.save(model.state_dict(), './save_model/NestedUnet_'+str(epoch+1)+'epoch_'+str(accuracy/len(testSet))+'loss.pth')
         lr_schedular.step()
 
 
