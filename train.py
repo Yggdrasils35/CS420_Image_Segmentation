@@ -44,9 +44,9 @@ def main():
     model_optim = optim.Adam(params, lr=1e-3)
 
     # Loss function
-    lr_schedular = optim.lr_scheduler.StepLR(model_optim, step_size=20, gamma=0.5)
+    lr_schedular = optim.lr_scheduler.StepLR(model_optim, step_size=10, gamma=0.1)
 
-    num_epochs = 60
+    num_epochs = 30
 
     for epoch in range(num_epochs):
         
